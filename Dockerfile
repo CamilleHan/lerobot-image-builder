@@ -74,4 +74,10 @@ PY
 
 WORKDIR /workspace
 
-CMD ["bash", "-lc", "sleep infinity"]
+COPY start-container.sh /usr/local/bin/start-container.sh
+
+RUN chmod +x /usr/local/bin/start-container.sh
+
+EXPOSE 22
+
+CMD ["/usr/local/bin/start-container.sh"]
