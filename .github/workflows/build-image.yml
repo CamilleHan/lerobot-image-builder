@@ -1,0 +1,80 @@
+name: Build LeRobot Docker image
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Free runner disk space
+        shell: bash
+        run: |
+          set -eux
+          echo "Disk space before cleanup:"
+          df -h
+
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          sudo apt-get clean || true
+          docker system prune -af || true
+
+          echo "Disk space after cleanup:"
+          df -h
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build, compress and split Docker image
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p release
+
+          # 直接将Docker镜像归档输出到标准输出，
+          # 随后压缩并分割，避免同时保存多个巨大中间文件。
+          docker buildx build \
+            --platform linux/amd64 \
+            --tag lerobot060:cu126 \
+            --progress=plain \
+            --output type=docker,dest=- \
+            . \
+          | gzip -1 \
+          | split \
+              -b 1900M \
+              -d \
+              -a 3 \
+              - \
+              release/lerobot060-cu126.tar.gz.part-
+
+          cd release
+          sha256sum lerobot060-cu126.tar.gz.part-* > SHA256SUMS
+
+          echo "Generated release files:"
+          ls -lh
+
+      - name: Create GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          TAG="lerobot060-run-${GITHUB_RUN_ID}"
+
+          gh release create "${TAG}" \
+            release/lerobot060-cu126.tar.gz.part-* \
+            release/SHA256SUMS \
+            --title "LeRobot 0.6.0 CUDA 12.6 image" \
+            --notes "Linux AMD64 Docker image containing Python 3.12, PyTorch 2.7.1 CUDA 12.6, LeRobot 0.6.0, SmolVLA and LIBERO."
