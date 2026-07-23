@@ -15,6 +15,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ffmpeg \
     git \
+    openssh-server \
+    openssh-client \
     libegl1 \
     libgl1 \
     libglew2.2 \
@@ -30,8 +32,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxrender1 \
     pkg-config \
     wget \
+    && mkdir -p /run/sshd \
+    && sed -ri 's/^#?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config \
+    && sed -ri 's/^#?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config \
     && rm -rf /var/lib/apt/lists/*
 
+RUN command -v ssh-keygen \
+    && command -v sshd \
+    && sshd -V 2>&1 || true
+    
 RUN python -m pip install --no-cache-dir \
     --upgrade pip setuptools wheel
 
